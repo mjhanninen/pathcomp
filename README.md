@@ -9,7 +9,7 @@ variables so that:
 ## Installation
 
 ```.sh
-$ git clone
+$ git clone git@github.com:mjhanninen/pathcomp.git
 $ cd pathcomp
 $ cargo install
 ```
