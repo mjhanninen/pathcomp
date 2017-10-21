@@ -1,0 +1,6 @@
+[package]
+name = "pathcomp"
+version = "0.1.0"
+authors = ["Matti Hänninen <matti@mjhanninen.com>"]
+
+[dependencies]
