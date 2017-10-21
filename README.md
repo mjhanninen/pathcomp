@@ -25,7 +25,7 @@ export PATH=$(pathcomp "$PATH")
 In case you are unsure if `pathcomp` is available:
 
 ```.sh
-if which pathcomp
+if which pathcomp >/dev/null
 then
     PATH=$(pathcomp "$PATH")
 fi
