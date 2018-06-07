@@ -1,8 +1,16 @@
+#![allow(dead_code)]
+
 extern crate clap;
 
 use std::io::{self, Write};
 
 use clap::{App, Arg};
+
+#[derive(Debug)]
+struct Config<'a> {
+    pathvars: Vec<&'a str>,
+    prefix_rules: Vec<&'a str>,
+}
 
 fn main() {
     let matches = App::new("Pathcomp")
@@ -25,13 +33,26 @@ fn main() {
     let pathvars = matches
         .values_of("PATHVARS")
         .map_or(vec![], |v| v.into_iter().collect::<Vec<_>>());
-    let mut output = Vec::new();
-    for pathvar in pathvars {
-        for path in pathvar.split(":") {
-            if output.iter().all(|p| p != &path) {
-                output.push(path.to_owned());
+    let prefix_rules = matches
+        .values_of("PREFIX_RULE")
+        .map_or(vec![], |v| v.into_iter().collect::<Vec<_>>());
+    let config = Config {
+        pathvars,
+        prefix_rules,
+    };
+    run(config);
+}
+
+fn run(config: Config) {
+    let paths = config
+        .pathvars
+        .into_iter()
+        .flat_map(|pathvar| pathvar.split(":"))
+        .fold(Vec::new(), |mut compressed, path| {
+            if compressed.iter().all(|p| p != &path) {
+                compressed.push(path);
             }
-        }
-    }
-    io::stdout().write(output.join(":").as_bytes()).unwrap();
+            compressed
+        });
+    io::stdout().write(paths.join(":").as_bytes()).unwrap();
 }
