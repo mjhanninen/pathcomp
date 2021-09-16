@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-
-extern crate clap;
-
 use std::io::{self, Write};
 
 use clap::{App, Arg};
@@ -16,9 +12,7 @@ fn main() {
     let matches = App::new("Pathcomp")
         .version(env!("CARGO_PKG_VERSION"))
         .author("Matti Hänninen <matti@mjhanninen.com>")
-        .about(
-            "Concatenates, reorders, and removes duplication from PATH-like environment variables",
-        )
+        .about("Deduplicates and reorders PATH and other environment variables")
         .arg(
             Arg::with_name("PREFIX_RULE")
                 .short("p")
@@ -43,9 +37,30 @@ fn main() {
     run(config);
 }
 
+fn run(config: Config) {
+    let mut paths: Vec<(usize, &str)> = config
+        .pathvars
+        .iter()
+        .flat_map(|pathvar| pathvar.split(':'))
+        .fold(Vec::new(), |mut compressed, path| {
+            if compressed.iter().all(|p| p != &path) {
+                compressed.push(path);
+            }
+            compressed
+        })
+        .into_iter()
+        .map(|path| (match_rule(&config.prefix_rules, path), path))
+        .collect();
+    paths.sort_by_key(|x| x.0);
+    let paths: Vec<&str> = paths.into_iter().map(|(_, path)| path).collect();
+    io::stdout().write_all(paths.join(":").as_bytes()).unwrap();
+}
+
 #[derive(Clone, Debug, PartialOrd, PartialEq)]
 enum Match {
+    /// The prefix matched the path exactly
     Exact,
+    /// The prefix matched the path but left an unmatched suffix of the given length.
     Partial(usize),
 }
 
@@ -61,7 +76,7 @@ fn match_prefix(prefix: &str, path: &str) -> Option<Match> {
 
 fn match_rule(rules: &[&str], path: &str) -> usize {
     rules
-        .into_iter()
+        .iter()
         .enumerate()
         .fold(None, |old: Option<(usize, Match)>, (i, r)| {
             match (old, match_prefix(r, path).map(|m| (i, m))) {
@@ -80,36 +95,17 @@ fn match_rule(rules: &[&str], path: &str) -> usize {
         .unwrap_or(rules.len())
 }
 
-fn run(config: Config) {
-    let mut paths: Vec<(usize, &str)> = config
-        .pathvars
-        .iter()
-        .flat_map(|pathvar| pathvar.split(":"))
-        .fold(Vec::new(), |mut compressed, path| {
-            if compressed.iter().all(|p| p != &path) {
-                compressed.push(path);
-            }
-            compressed
-        })
-        .into_iter()
-        .map(|path| (match_rule(&config.prefix_rules, path), path))
-        .collect();
-    paths.sort_by_key(|x| x.0);
-    let paths: Vec<&str> = paths.into_iter().map(|(_, path)| path).collect();
-    io::stdout().write(paths.join(":").as_bytes()).unwrap();
-}
-
 #[cfg(test)]
 mod test {
 
     #[test]
     fn test_match_ordering() {
         use super::Match;
-        assert!(Match::Exact < Match::Partial);
-        assert!(Match::Exact < Match::NoMatch);
-        assert!(Match::Partial < Match::NoMatch);
+        assert!(Match::Exact < Match::Partial(0));
+        assert!(Match::Exact < Match::Partial(1));
+        assert!(Match::Partial(0) < Match::Partial(1));
         assert!(Match::Exact == Match::Exact);
-        assert!(Match::Partial == Match::Partial);
-        assert!(Match::NoMatch == Match::NoMatch);
+        assert!(Match::Partial(0) == Match::Partial(0));
+        assert!(Match::Partial(1) == Match::Partial(1));
     }
 }
